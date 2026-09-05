@@ -89,10 +89,14 @@ export async function runBoundedProcess(
   )
     throw new Error("Invalid bounded runner budget.");
   return new Promise((resolvePromise, reject) => {
+    const hasInput =
+      typeof options.input === "string" && options.input.length > 0;
     let child: ChildProcess;
     try {
       child = spawn(bin, args, {
-        stdio: ["pipe", "pipe", "pipe"],
+        // Fast utility children may exit before a zero-byte pipe write on Linux.
+        // Only Pi's real nonempty prompt needs a writable stdin; all other commands get /dev/null.
+        stdio: [hasInput ? "pipe" : "ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
       });
     } catch (error) {
@@ -208,10 +212,12 @@ export async function runBoundedProcess(
       resolvePromise({ stdout, stderr });
     });
     options.signal?.addEventListener("abort", onAbort, { once: true });
-    child.stdin?.once("error", (error) =>
-      cleanupFailure(`Process stdin failed: ${error.message}`),
-    );
-    child.stdin?.end(options.input ?? "");
+    if (hasInput) {
+      child.stdin?.once("error", (error) =>
+        cleanupFailure(`Process stdin failed: ${error.message}`),
+      );
+      child.stdin?.end(options.input);
+    }
     // A child can close before an asynchronous spawn error. This is intentionally retained for diagnostics.
     void closed;
   });

@@ -258,6 +258,32 @@ describe("agent runner process boundary", () => {
     expect(applied).toContain("Apply completed");
     await rm(directory, { recursive: true, force: true });
   }, 30_000);
+  it("uses /dev/null for omitted or empty utility stdin but delivers nonempty Pi payloads", async () => {
+    const expectsNull = [
+      "-e",
+      "const fs=require('fs');if(!fs.fstatSync(0).isCharacterDevice())process.exit(9)",
+    ];
+    await expect(
+      runBoundedProcess(process.execPath, expectsNull),
+    ).resolves.toMatchObject({ stdout: "" });
+    await expect(
+      runBoundedProcess(process.execPath, expectsNull, { input: "" }),
+    ).resolves.toMatchObject({ stdout: "" });
+    const receivesPayload = [
+      "-e",
+      "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{if(s==='full payload')process.stdout.write('received');else process.exit(8)})",
+    ];
+    await expect(
+      runBoundedProcess(process.execPath, receivesPayload, {
+        input: "full payload",
+      }),
+    ).resolves.toMatchObject({ stdout: "received" });
+    await expect(
+      runBoundedProcess(process.execPath, ["-e", "process.exit(0)"], {
+        input: "x".repeat(5_000_000),
+      }),
+    ).rejects.toThrow("stdin failed");
+  });
   it("binds saved plans to content and enforces output bounds", async () => {
     const directory = await temporaryGit();
     const previous = process.cwd();
