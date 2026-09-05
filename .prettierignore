@@ -1,0 +1,9 @@
+node_modules
+.output
+.nitro
+dist
+coverage
+playwright-report
+test-results
+.agent-runs
+src/routeTree.gen.ts

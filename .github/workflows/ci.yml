@@ -1,0 +1,63 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.13.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm verify
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+  docker-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.13.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: docker build --tag workbench:ci .
+      - run: docker run --detach --rm --name workbench-ci -p 3000:3000 workbench:ci
+      - name: Check container health response and security headers
+        run: >-
+          node -e "const until=Date.now()+60000;(async()=>{while(Date.now()<until){try{const r=await fetch('http://127.0.0.1:3000/api/health');const body=await r.json();if(r.status===200&&body.status==='ok'&&r.headers.get('cache-control')==='no-store'&&r.headers.get('x-content-type-options')==='nosniff')return}catch{}await new Promise(resolve=>setTimeout(resolve,1000))}throw new Error('Container health endpoint did not return the expected response and headers')})()"
+      - run: docker exec workbench-ci sh -c 'test "$(id -u)" != 0'
+      - name: Browser smoke against the published container
+        run: PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 pnpm exec playwright test --project=desktop-chromium
+      - if: always()
+        run: docker logs workbench-ci || true
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docker-playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore

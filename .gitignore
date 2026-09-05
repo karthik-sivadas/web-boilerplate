@@ -1,0 +1,11 @@
+node_modules
+.output
+.nitro
+dist
+coverage
+playwright-report
+test-results
+.agent-runs
+.env*
+!.env.example
+.DS_Store
