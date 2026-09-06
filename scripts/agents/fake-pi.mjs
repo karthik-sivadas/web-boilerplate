@@ -2,13 +2,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 const mode = process.env.FAKE_PI_MODE ?? "success";
 const provider = process.env.FAKE_PROVIDER ?? "openai-codex";
-const model =
-  process.env.FAKE_MODEL ??
-  (process.argv.includes("gpt-6-astra")
-    ? "gpt-6-astra"
-    : process.argv.includes("gpt-5.6-luna")
-      ? "gpt-5.6-luna"
-      : "gpt-5.6-terra");
+const model = process.env.FAKE_MODEL ?? "gpt-6-astra";
 const event = (type, extra = {}) => ({ type, ...extra });
 const assistant = (stopReason, content, identity = {}) =>
   event("message_end", {
@@ -48,11 +42,7 @@ function catalog() {
       ? ["other gpt-6-astra 1 1 yes no"]
       : mode === "missing-model"
         ? ["openai-codex other-model 1 1 yes no"]
-        : [
-            "openai-codex gpt-6-astra 1 1 yes no",
-            "openai-codex gpt-5.6-terra 1 1 yes no",
-            "openai-codex gpt-5.6-luna 1 1 yes no",
-          ];
+        : ["openai-codex gpt-6-astra 1 1 yes no"];
   const table =
     mode === "catalog-text"
       ? "diagnostic mentions openai-codex gpt-6-astra"
@@ -144,7 +134,12 @@ function cliText(input) {
     });
   if (input.includes("PHASE: CONSENTED RESEARCH"))
     return "Research finding with https://example.test";
-  const retry = input.includes("Astra bounded hard-blocker solution");
+  if (
+    !input.includes("PHASE: IMPLEMENTATION") &&
+    !input.includes("PHASE: ONE BOUNDED VERIFICATION REPAIR")
+  )
+    throw new Error("Fake Pi requires an explicit phase prompt.");
+  const retry = input.includes("Astra high bounded hard-blocker solution");
   const firstBlocked =
     ["cli-blocked", "cli-blocked-unowned", "cli-blocked-partial"].includes(
       mode,

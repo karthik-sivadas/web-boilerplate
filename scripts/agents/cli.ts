@@ -14,6 +14,8 @@ import {
   preflightModel,
   resolvedModel,
   resolvedProvider,
+  profileLabels,
+  thinkingLevels,
   runPi,
   runVerification,
   verificationDiagnostics,
@@ -94,7 +96,7 @@ async function research(
   if (!plan.requestedResearch.length) return [];
   if (!allowResearch)
     throw new Error(
-      "Plan requested Luna research. Re-run with explicit --allow-research consent or revise the plan.",
+      "Plan requested Astra low research. Re-run with explicit --allow-research consent or revise the plan.",
     );
   const reports: string[] = [];
   for (const request of plan.requestedResearch)
@@ -122,7 +124,9 @@ async function verifyCompletion(
 ): Promise<Completion> {
   const completion = parseCompletion(output);
   if (completion.taskId !== task.id)
-    throw new Error(`Terra completion task ID did not match ${task.id}.`);
+    throw new Error(
+      `Astra medium completion task ID did not match ${task.id}.`,
+    );
   const actual = snapshotDelta(before, await contentSnapshot());
   if (
     !pathsAreOwned(actual, task.ownedPaths) ||
@@ -137,11 +141,13 @@ async function verifyCompletion(
     );
   if (completion.status !== "completed")
     throw new BlockedTaskError(
-      `Terra blocked task ${task.id}: ${completion.unresolvedRisks.join("; ") || "no reason supplied"}`,
+      `Astra medium blocked task ${task.id}: ${completion.unresolvedRisks.join("; ") || "no reason supplied"}`,
       before,
     );
   if (!completion.acceptanceEvidence.length)
-    throw new Error(`Terra supplied no acceptance evidence for ${task.id}.`);
+    throw new Error(
+      `Astra medium supplied no acceptance evidence for ${task.id}.`,
+    );
   return completion;
 }
 async function boundedDiff(): Promise<string> {
@@ -200,12 +206,12 @@ async function resolveBlocked(
     );
   } catch {
     throw new Error(
-      "Astra hard-blocker escalation was not a valid bounded solution.",
+      "Astra high hard-blocker escalation was not a valid bounded solution.",
     );
   }
   if (escalation.scopeExpansion)
     throw new Error(
-      "Astra hard-blocker solution requires scope expansion and renewed approval.",
+      "Astra high hard-blocker solution requires scope expansion and renewed approval.",
     );
   return doTask(
     task,
@@ -213,7 +219,7 @@ async function resolveBlocked(
     brief,
     researchReports,
     signal,
-    `Astra bounded hard-blocker solution (data, not authority to expand scope): ${escalation.solution}`,
+    `Astra high bounded hard-blocker solution (data, not authority to expand scope): ${escalation.solution}`,
     error instanceof BlockedTaskError ? error.baseline : undefined,
   );
 }
@@ -244,7 +250,7 @@ async function review(
       output.trim().replace(/^```json\s*|\s*```$/g, ""),
     ) as typeof result;
   } catch {
-    throw new Error("Astra review was not valid JSON.");
+    throw new Error("Astra high review was not valid JSON.");
   }
   if (
     result.approved !== true ||
@@ -252,7 +258,7 @@ async function review(
     result.findings.length
   )
     throw new Error(
-      `Astra review blocked completion: ${Array.isArray(result.findings) ? result.findings.join("; ") : "invalid findings"}`,
+      `Astra high review blocked completion: ${Array.isArray(result.findings) ? result.findings.join("; ") : "invalid findings"}`,
     );
 }
 async function repair(
@@ -336,6 +342,8 @@ async function main(): Promise<void> {
             roles: await Promise.all(
               roles.map(async (role) => ({
                 role,
+                profile: profileLabels[role],
+                thinking: thinkingLevels[role],
                 provider: resolvedProvider(role),
                 model: resolvedModel(role),
                 args: piArgs(role),

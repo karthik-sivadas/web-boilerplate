@@ -1,11 +1,14 @@
 node_modules
 .output
 .nitro
+.tanstack
+.turbo
 dist
 coverage
 playwright-report
 test-results
 .agent-runs
+.data
 .env*
 !.env.example
 .DS_Store

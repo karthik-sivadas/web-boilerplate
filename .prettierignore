@@ -6,4 +6,10 @@ coverage
 playwright-report
 test-results
 .agent-runs
-src/routeTree.gen.ts
+**/routeTree.gen.ts
+**/.data
+**/.env
+**/.env.*
+!.env.example
+**/.turbo
+**/.tanstack

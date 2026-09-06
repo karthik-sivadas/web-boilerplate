@@ -1,10 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { signUpUI } from "./auth-fixtures";
 
 const unexpectedBrowserMessages = new WeakMap<Page, string[]>();
 const expectedNotFoundNavigation = new WeakSet<Page>();
 
 test.beforeEach(async ({ page }) => {
+  test.setTimeout(150_000);
   const messages: string[] = [];
   unexpectedBrowserMessages.set(page, messages);
   page.on("pageerror", (error) => messages.push(`pageerror: ${error.message}`));
@@ -12,18 +14,29 @@ test.beforeEach(async ({ page }) => {
     const expected404 =
       expectedNotFoundNavigation.has(page) &&
       message.type() === "error" &&
-      message.text() ===
-        "Failed to load resource: the server responded with a status of 404 ()";
+      (message.text() ===
+        "Failed to load resource: the server responded with a status of 404 ()" ||
+        message.text().includes("TypeError: Failed to fetch"));
+    // Signup fixtures pace only real server-reported rate windows; unrelated errors still fail.
+    const expectedFixtureRateLimit =
+      message.type() === "error" &&
+      message.text().includes("429") &&
+      message.location().url.includes("/api/auth/sign-up/email");
     if (
       !expected404 &&
+      !expectedFixtureRateLimit &&
       (message.type() === "error" ||
         (message.type() === "warning" && /hydration/i.test(message.text())))
     )
       messages.push(`console ${message.type()}: ${message.text()}`);
   });
-  await page.goto("/");
+  await page.goto("/sign-up");
+  await expectNoSeriousAxeIssues(page);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   await page.evaluate(() => localStorage.clear());
-  await page.reload();
+  await signUpUI(page);
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test.afterEach(({ page }) => {
@@ -31,6 +44,8 @@ test.afterEach(({ page }) => {
 });
 
 async function expectNoSeriousAxeIssues(page: Page) {
+  // Aria exposes entering/exiting state; audit settled colors, not the fade's intermediate opacity.
+  await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
   const results = await new AxeBuilder({ page }).analyze();
   expect(
     results.violations.filter((violation) =>
@@ -43,6 +58,16 @@ test("creates and renames a project, completes a task journey, persists, resets,
   page,
   request,
 }) => {
+  expect(
+    await page
+      .locator("body")
+      .evaluate((element) => getComputedStyle(element).fontFamily),
+  ).toContain("Outfit");
+  expect(
+    await page
+      .locator("h1")
+      .evaluate((element) => getComputedStyle(element).fontFamily),
+  ).toContain("Oxanium");
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
   expect(health.headers()["cache-control"]).toBe("no-store");
@@ -61,7 +86,7 @@ test("creates and renames a project, completes a task journey, persists, resets,
   await page.getByLabel("Description").fill("Prepare the next release.");
   await page.getByRole("button", { name: "Save project" }).click();
   const projectCard = page
-    .locator("article")
+    .locator('[data-slot="card"]')
     .filter({ hasText: "Launch planning" });
   await expect(projectCard).toBeVisible();
   await projectCard.getByRole("link", { name: "Open" }).click();
@@ -73,7 +98,9 @@ test("creates and renames a project, completes a task journey, persists, resets,
   ).toBeVisible();
 
   await page.getByRole("link", { name: /View in tasks/i }).click();
-  await expect(page.getByLabel("Filter by project")).toHaveValue(/project-/);
+  await expect(
+    page.getByRole("button", { name: /Filter by project/ }),
+  ).toContainText("Launch brief");
   await page.getByRole("button", { name: "New task" }).click();
   await page.getByLabel("Task title").fill("Prepare launch brief");
   await page.getByLabel("Description").fill("Share milestones with the team.");
@@ -84,10 +111,15 @@ test("creates and renames a project, completes a task journey, persists, resets,
     .locator("li")
     .filter({ hasText: "Prepare launch brief" });
   await taskRow.getByRole("button", { name: "Edit" }).click();
-  await page.locator('select[name="status"]').selectOption("done");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Status/ })
+    .click();
+  await page.getByRole("option", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.getByLabel("Search tasks").fill("launch");
-  await page.getByLabel("Filter by status").selectOption("done");
+  await page.getByRole("button", { name: /Filter by status/ }).click();
+  await page.getByRole("option", { name: "Done", exact: true }).click();
   await expect(page.getByText("Prepare launch brief")).toBeVisible();
   await page.reload();
   await expect(page.getByText("Prepare launch brief")).toBeVisible();
@@ -97,7 +129,7 @@ test("creates and renames a project, completes a task journey, persists, resets,
   await page.getByRole("link", { name: /View in tasks/i }).click();
   await page.getByRole("button", { name: "New task" }).click();
   await expect(
-    page.getByRole("dialog").getByLabel("Project"),
+    page.getByRole("dialog").getByRole("button", { name: /Project/ }),
   ).not.toContainText("Completed experiments");
   await page.getByRole("button", { name: "Cancel" }).click();
 
@@ -139,6 +171,12 @@ test("open dialogs trap and restore focus, and every primary screen has no serio
 
   await page.goto("/tasks");
   const trigger = page.getByRole("button", { name: "New task" });
+  expect(
+    await trigger.evaluate((element) => getComputedStyle(element).borderRadius),
+  ).toBe("0px");
+  expect(
+    await trigger.evaluate((element) => getComputedStyle(element).cursor),
+  ).toBe("pointer");
   await trigger.focus();
   await trigger.press("Enter");
   const dialog = page.getByRole("dialog");

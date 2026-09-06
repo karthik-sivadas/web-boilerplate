@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { completionSchema, escalationSchema, planSchema } from "./contract";
 import type { Plan } from "./contract";
-import type { Role } from "./runner";
+import { profileLabels, type Role } from "./runner";
 
 const planExample = {
   version: 1,
@@ -61,7 +61,7 @@ const roleGuidance: Record<Role, string> = {
 };
 
 export function buildPrompt(role: Role, input: PromptInput): string {
-  const common = `\nREPOSITORY INSTRUCTIONS (trusted repository data):\n${input.repositoryInstructions}\n\nUSER BRIEF:\n${input.brief}\n\nROLE GUIDANCE:\n${roleGuidance[role]}\n`;
+  const common = `PROFILE: ${profileLabels[role]} (legacy internal key: ${role})\n\nREPOSITORY INSTRUCTIONS (trusted repository data):\n${input.repositoryInstructions}\n\nUSER BRIEF:\n${input.brief}\n\nROLE GUIDANCE:\n${roleGuidance[role]}\n`;
   const planContext = input.plan
     ? `\nSAVED PLAN (trusted structured data):\n${JSON.stringify(input.plan, null, 2)}\n`
     : "";
@@ -74,7 +74,7 @@ export function buildPrompt(role: Role, input: PromptInput): string {
   if (input.phase === "plan")
     return `${common}${research}\nPHASE: PLAN\nInspect first, then return only a strict version-1 plan JSON object. No implementation or research is authorized. The schema is:\n${schema(planSchema)}\nExample shape:\n${JSON.stringify(planExample, null, 2)}\nUse at most six acyclic tasks; each task needs exact owned repository paths, dependencies, and testable acceptance criteria. Allowed verification enum values are fixed by the schema.\n`;
   if (input.phase === "research")
-    return `${common}\nPHASE: CONSENTED RESEARCH\nAnswer only the approved research question below. Return concise sanitized findings with source URLs, access date, maintenance/compatibility evidence, limits, and recommendation. Do not return commands or implementation instructions.\nQUESTION:\n${input.brief}\n`;
+    return `${common}\nPHASE: CONSENTED RESEARCH\nAnswer only the approved research question below. Return concise sanitized findings with source URLs, retrieval date and maintenance/compatibility evidence, limits, and recommendation. Do not return commands or implementation instructions.\nQUESTION:\n${input.brief}\n`;
   if (input.phase === "review")
     return `${common}${planContext}${research}\nPHASE: FINAL REVIEW\nReview the actual bounded diff, task completion records, and deterministic verification diagnostics below. Reject if evidence is missing, scope/claims disagree, verification failed, or acceptance is unmet. Return ONLY {"approved":true,"findings":[]} for approval, otherwise {"approved":false,"findings":["specific actionable finding"]}.\nEVIDENCE:\n${input.evidence ?? "No evidence supplied."}\n`;
   if (input.phase === "escalate")

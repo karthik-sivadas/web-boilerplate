@@ -13,6 +13,8 @@ import {
   parsePlan,
   pathsAreOwned,
   preflightModel,
+  piArgs,
+  type Role,
   runBoundedProcess,
   runPi,
   loadBoundPlan,
@@ -25,6 +27,7 @@ import {
 const root = process.cwd();
 const fake = join(root, "scripts/agents/fake-pi.mjs");
 afterEach(() => {
+  vi.unstubAllEnvs();
   delete process.env.FAKE_PI_MODE;
   delete process.env.AGENT_PI_BIN;
   delete process.env.AGENT_TEST_VERIFY_BIN;
@@ -42,7 +45,62 @@ async function temporaryGit(): Promise<string> {
   execFileSync("git", ["commit", "-qm", "seed"], { cwd: directory });
   return directory;
 }
+const profiles = [
+  ["astra", "high", "read,grep,find,ls"],
+  ["terra", "medium", "read,grep,find,ls,write,edit,bash"],
+  ["luna", "low", "read,grep,find,ls,bash"],
+] as const;
 describe("agent runner process boundary", () => {
+  it.each(profiles)(
+    "pins public %s argv to Astra with explicit %s reasoning and unchanged tools",
+    (role, thinking, tools) => {
+      const args = piArgs(role);
+      for (const [flag, value] of [
+        ["--provider", "openai-codex"],
+        ["--model", "gpt-6-astra"],
+        ["--thinking", thinking],
+        ["--tools", tools],
+      ] as const) {
+        expect(args.filter((arg) => arg === flag)).toHaveLength(1);
+        expect(args[args.indexOf(flag) + 1]).toBe(value);
+      }
+      expect(args).toContain("--no-approve");
+      expect(args.at(-1)).toContain(`Astra ${thinking}`);
+    },
+  );
+  it.each(profiles)(
+    "fails closed on unsupported %s overrides before spawning Pi",
+    async (role) => {
+      vi.stubEnv("AGENT_PI_BIN", "/definitely/not/a-program");
+      for (const [kind, matching, wrong] of [
+        ["MODEL", "gpt-6-astra", "other-model"],
+        ["PROVIDER", "openai-codex", "other-provider"],
+      ] as const) {
+        const key = `AGENT_${role.toUpperCase()}_${kind}`;
+        for (const value of [wrong, ""]) {
+          vi.stubEnv(key, value);
+          expect(() => piArgs(role)).toThrow(key);
+          await expect(preflightModel(role)).rejects.toThrow(key);
+          await expect(runPi(role, "test")).rejects.toThrow(key);
+        }
+        vi.stubEnv(key, matching);
+        expect(() => piArgs(role)).not.toThrow();
+      }
+    },
+  );
+  it.each(profiles)(
+    "rejects final identity mismatches for %s",
+    async (role) => {
+      vi.stubEnv("AGENT_PI_BIN", fake);
+      for (const key of ["FAKE_MODEL", "FAKE_PROVIDER"]) {
+        vi.stubEnv(key, "unexpected");
+        await expect(runPi(role, "test")).rejects.toThrow(
+          "unexpected provider or model",
+        );
+        vi.stubEnv(key, key === "FAKE_MODEL" ? "gpt-6-astra" : "openai-codex");
+      }
+    },
+  );
   it("emits and consumes one strict hard-blocker escalation contract", () => {
     const emitted = buildPrompt("astra", {
       phase: "escalate",
@@ -61,22 +119,23 @@ describe("agent runner process boundary", () => {
       }),
     ).toEqual({ solution: "retry owned task", scopeExpansion: false });
   });
-  it("preflights the exact provider/model catalog and isolated arguments", async () => {
-    process.env.AGENT_PI_BIN = fake;
-    await expect(preflightModel("astra")).resolves.toBeUndefined();
-    process.env.FAKE_PI_MODE = "catalog-stdout";
-    await expect(preflightModel("astra")).resolves.toBeUndefined();
-    process.env.FAKE_PI_MODE = "wrong-provider";
-    await expect(preflightModel("astra")).rejects.toThrow("different provider");
-    process.env.FAKE_PI_MODE = "missing-model";
-    await expect(preflightModel("astra")).rejects.toThrow(
-      "does not list model",
-    );
-    process.env.FAKE_PI_MODE = "catalog-text";
-    await expect(preflightModel("astra")).rejects.toThrow(
-      "unrecognized or malformed",
-    );
-  });
+  it.each(profiles)(
+    "preflights %s against the same exact provider/model catalog",
+    async (role) => {
+      process.env.AGENT_PI_BIN = fake;
+      await expect(preflightModel(role)).resolves.toBeUndefined();
+      process.env.FAKE_PI_MODE = "catalog-stdout";
+      await expect(preflightModel(role)).resolves.toBeUndefined();
+      process.env.FAKE_PI_MODE = "wrong-provider";
+      await expect(preflightModel(role)).rejects.toThrow("different provider");
+      process.env.FAKE_PI_MODE = "missing-model";
+      await expect(preflightModel(role)).rejects.toThrow("does not list model");
+      process.env.FAKE_PI_MODE = "catalog-text";
+      await expect(preflightModel(role)).rejects.toThrow(
+        "unrecognized or malformed",
+      );
+    },
+  );
   it("accepts only exact completed JSONL lifecycle and rejects protocol failures", async () => {
     process.env.AGENT_PI_BIN = fake;
     await expect(runPi("astra", "test")).resolves.toBe('{"ok":true}');
@@ -241,6 +300,29 @@ describe("agent runner process boundary", () => {
       env,
       encoding: "utf8",
     });
+    const resolved = JSON.parse(dry) as {
+      roles: {
+        role: Role;
+        profile: string;
+        thinking: string;
+        model: string;
+        provider: string;
+        args: string[];
+        prompt: string;
+      }[];
+    };
+    expect(resolved.roles).toHaveLength(3);
+    for (const [role, thinking] of profiles) {
+      const actual = resolved.roles.find((entry) => entry.role === role)!;
+      expect(actual.args).toEqual(piArgs(role));
+      expect(actual).toMatchObject({
+        model: "gpt-6-astra",
+        provider: "openai-codex",
+        thinking,
+      });
+      expect(actual.profile).toContain(`Astra ${thinking}`);
+      expect(actual.prompt).toContain(`PROFILE: Astra ${thinking}`);
+    }
     expect(dry).toContain("full brief");
     expect(dry).toContain("REPOSITORY INSTRUCTIONS");
     expect(dry).toContain("version");

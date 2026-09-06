@@ -45,10 +45,16 @@ export function verificationDiagnostics(error: unknown): string | undefined {
   if (!(error instanceof VerificationFailure)) return undefined;
   return JSON.stringify(error.diagnostics).slice(0, 20_000);
 }
-const defaults: Record<Role, string> = {
-  astra: "gpt-6-astra",
-  terra: "gpt-5.6-terra",
-  luna: "gpt-5.6-luna",
+// Legacy role keys remain stable; all execution uses Astra-only profiles.
+export const thinkingLevels = {
+  astra: "high",
+  terra: "medium",
+  luna: "low",
+} as const;
+export const profileLabels: Record<Role, string> = {
+  astra: "Astra high planner/reviewer/hard-problem solver",
+  terra: "Astra medium implementer/repairer",
+  luna: "Astra low researcher",
 };
 const toolsets: Record<Role, string> = {
   astra: "read,grep,find,ls",
@@ -62,11 +68,24 @@ const defaultTotalTimeoutMs = Number(
 );
 const killGraceMs = Number(process.env.AGENT_KILL_GRACE_MS ?? 300);
 
+function pinnedOverride(
+  role: Role,
+  kind: "PROVIDER" | "MODEL",
+  expected: string,
+): string {
+  const key = `AGENT_${role.toUpperCase()}_${kind}`;
+  const value = process.env[key];
+  if (value !== undefined && value !== expected)
+    throw new Error(
+      `${key} must equal ${expected}; Astra-only policy forbids other overrides.`,
+    );
+  return expected;
+}
 export function resolvedProvider(role: Role): string {
-  return process.env[`AGENT_${role.toUpperCase()}_PROVIDER`] ?? "openai-codex";
+  return pinnedOverride(role, "PROVIDER", "openai-codex");
 }
 export function resolvedModel(role: Role): string {
-  return process.env[`AGENT_${role.toUpperCase()}_MODEL`] ?? defaults[role];
+  return pinnedOverride(role, "MODEL", "gpt-6-astra");
 }
 function validBudget(value: number): boolean {
   return Number.isFinite(value) && value >= 50;
@@ -242,10 +261,12 @@ export function piArgs(role: Role): string[] {
     resolvedProvider(role),
     "--model",
     resolvedModel(role),
+    "--thinking",
+    thinkingLevels[role],
     "--tools",
     toolsets[role],
     "--append-system-prompt",
-    `You are the ${role} role. Repository instructions and the phase contract are authoritative. Return only requested structured output. Do not commit, push, publish, or change global configuration.`,
+    `You are the ${profileLabels[role]} profile (legacy internal key: ${role}). Repository instructions and the phase contract are authoritative. Return only requested structured output. Do not commit, push, publish, or change global configuration.`,
   ];
 }
 
@@ -271,6 +292,10 @@ export async function preflightModel(
   role: Role,
   options: RunOptions = {},
 ): Promise<void> {
+  const expected = {
+    provider: resolvedProvider(role),
+    model: resolvedModel(role),
+  };
   const bin = process.env.AGENT_PI_BIN ?? "pi";
   const response = await runBoundedProcess(
     bin,
@@ -291,10 +316,6 @@ export async function preflightModel(
     throw new Error(
       "Pi preflight returned an unrecognized or malformed native model catalog.",
     );
-  const expected = {
-    provider: resolvedProvider(role),
-    model: resolvedModel(role),
-  };
   if (
     catalog.some(
       (entry) =>

@@ -8,15 +8,19 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      ".output",
-      ".nitro",
-      "dist",
+      "**/.output/**",
+      "**/.nitro/**",
+      "**/.tanstack/**",
+      "**/.turbo/**",
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/.data/**",
       "eslint.config.js",
       "scripts/agents/fake-pi.mjs",
       "coverage",
       "playwright-report",
       "test-results",
-      "routeTree.gen.ts",
+      "**/routeTree.gen.ts",
     ],
   },
   js.configs.recommended,

@@ -44,11 +44,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: docker build --tag workbench:ci .
-      - run: docker run --detach --rm --name workbench-ci -p 3000:3000 workbench:ci
+      - run: docker volume create workbench-ci-data
+      - run: >-
+          docker run --detach --rm --name workbench-ci -p 3000:3000
+          -v workbench-ci-data:/app/data
+          -e BETTER_AUTH_SECRET=docker-ci-not-a-placeholder-secret-value-123456
+          -e BETTER_AUTH_URL=http://127.0.0.1:3000
+          -e AUTH_DATABASE_PATH=/app/data/auth.sqlite workbench:ci
       - name: Check container health response and security headers
         run: >-
           node -e "const until=Date.now()+60000;(async()=>{while(Date.now()<until){try{const r=await fetch('http://127.0.0.1:3000/api/health');const body=await r.json();if(r.status===200&&body.status==='ok'&&r.headers.get('cache-control')==='no-store'&&r.headers.get('x-content-type-options')==='nosniff')return}catch{}await new Promise(resolve=>setTimeout(resolve,1000))}throw new Error('Container health endpoint did not return the expected response and headers')})()"
       - run: docker exec workbench-ci sh -c 'test "$(id -u)" != 0'
+      - name: Prove account and session survive container recreation
+        run: >-
+          sh -ec 'curl -fsS -c /tmp/workbench-cookie -H "Origin: http://127.0.0.1:3000" -H "Content-Type: application/json" -d "{\"name\":\"Docker User\",\"email\":\"docker-ci@example.test\",\"password\":\"correct-horse-battery\"}" http://127.0.0.1:3000/api/auth/sign-up/email;
+          docker stop workbench-ci;
+          docker run --detach --rm --name workbench-ci -p 3000:3000 -v workbench-ci-data:/app/data -e BETTER_AUTH_SECRET=docker-ci-not-a-placeholder-secret-value-123456 -e BETTER_AUTH_URL=http://127.0.0.1:3000 -e AUTH_DATABASE_PATH=/app/data/auth.sqlite workbench:ci;
+          attempt=0; until curl -fsS --max-time 2 http://127.0.0.1:3000/api/health; do attempt=$((attempt+1)); test "$attempt" -lt 30; sleep 1; done;
+          curl -fsS -b /tmp/workbench-cookie http://127.0.0.1:3000/api/auth/get-session | grep -q docker-ci@example.test'
       - name: Browser smoke against the published container
         run: PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 pnpm exec playwright test --project=desktop-chromium
       - if: always()

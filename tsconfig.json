@@ -12,13 +12,18 @@
     "useUnknownInCatchVariables": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": false,
-    "types": ["vitest/globals", "node"]
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": { "@/*": ["apps/web/src/*"] },
+    "types": ["vitest/globals", "@testing-library/jest-dom/vitest", "node"]
   },
   "include": [
-    "src",
+    "apps/web/src",
+    "apps/web/scripts",
+    "apps/web/vite.config.ts",
+    "packages/ui/src",
     "scripts",
     "tests",
-    "vite.config.ts",
     "eslint.config.js",
     "vitest.config.ts",
     "playwright.config.ts"
