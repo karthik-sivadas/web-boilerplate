@@ -32,6 +32,13 @@ export async function signUpUI(page: Page) {
     const response = await pending;
     if (response.status() !== 429) {
       expect(response.status()).toBe(200);
+      // A response (or the destination URL) can precede Router navigation and
+      // mounted session reconciliation. Do not let callers unload that work.
+      await expect(
+        page.getByRole("heading", {
+          name: "A clearer way to move work forward",
+        }),
+      ).toBeVisible();
       return account;
     }
     await paceRateWindow(response.headers());

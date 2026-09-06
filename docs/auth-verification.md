@@ -1,6 +1,6 @@
 # Auth phase-2 verification and limits
 
-Local `pnpm verify` passes **75 tests in 9 files and 14 browser executions**. All original 39 tests and six browser executions remain. The independent supervisor/security review and hosted Docker deployment proof are still release gates; this is not production certification.
+Local `pnpm verify` passes **75 tests in 9 files and 20 browser executions**. All original 39 tests and six browser executions remain. The independent supervisor/security review and hosted Docker deployment proof are still release gates; this is not production certification.
 
 ## Implementation contract
 
@@ -13,6 +13,8 @@ Logout never treats a failed response as confirmed revocation. It hides controls
 The native Nitro plugin uses the tested `createStartupGate`; every request class gets 503/no-store until migrations succeed. Rejection or the 60-second deadline fails closed and exits 1. A final Fetch-response policy applies private/no-store to non-health paths, including redirects and raw generated RPC responses, preserving distinct Set-Cookie fields. Read-only protected RPC rejection is an explicit HTTP 401 Response, not an Error that the non-SDK transport converts to 500.
 
 ## Test-to-requirement mapping
+
+`tests/e2e/auth-fixture.spec.ts` adds two desktop/mobile executions proving that signup fixtures wait for verified workspace readiness, not merely HTTP success or URL arrival. `tests/e2e/auth-form-safety.spec.ts` adds four executions (signup/signin × desktop/mobile) with JavaScript disabled: actual native requests use POST with credentials in the body, request/final-page URLs have no query, the session stays absent, protected navigation still redirects, and native signup does not create a usable account. Start returns an inert HTML200 for these page POSTs, not an authentication success. The shared form's explicit POST/action prevents default-GET credential URLs before hydration; hydrated SDK submission and native validation remain unchanged.
 
 | Evidence                                                         | Assertions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

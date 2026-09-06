@@ -66,6 +66,8 @@ export function AuthPage({ mode }: { mode: "sign-in" | "sign-up" }) {
         </CardHeader>
         <CardContent>
           <form
+            method="post"
+            action={signUp ? "/sign-up" : "/sign-in"}
             className={styles.form}
             onSubmit={(event) => void submit(event)}
             noValidate={false}
