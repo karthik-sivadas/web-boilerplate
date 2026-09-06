@@ -59,7 +59,7 @@
     "eslint-plugin-react-refresh": "0.4.24",
     "jsdom": "27.4.0",
     "playwright": "1.58.2",
-    "prettier": "3.7.4",
+    "prettier": "3.9.6",
     "prettier-plugin-packagejson": "2.5.19",
     "shadcn": "4.21.0",
     "tsx": "4.21.0",
