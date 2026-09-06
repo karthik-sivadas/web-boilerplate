@@ -9,19 +9,25 @@
     "pnpm": "11.7.0"
   },
   "scripts": {
-    "dev": "turbo dev --env-mode=loose",
+    "dev": "tsx scripts/local.ts dev",
+    "setup:local": "tsx scripts/local.ts setup",
+    "db:migrate": "tsx scripts/local.ts migrate",
+    "db:up": "tsx scripts/local.ts database",
     "build": "turbo build --env-mode=loose",
     "start": "pnpm --filter web start",
-    "auth:setup": "pnpm --filter web auth:setup",
+    "auth:setup": "pnpm setup:local",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint scripts tests *.ts && turbo lint --env-mode=loose",
     "typecheck": "tsc --noEmit && turbo typecheck --env-mode=loose",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:api": "pnpm --filter api test",
     "test:e2e": "playwright test",
     "test:artifact": "tsx tests/artifact-check.ts",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm test:artifact && pnpm test:e2e",
+    "test:ssr": "tsx tests/ssr-lifetime-check.ts",
+    "test:docker": "tsx tests/docker-smoke.ts",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm test:api && pnpm build && pnpm test:artifact && pnpm test:ssr && pnpm test:e2e",
     "agent": "tsx scripts/agents/cli.ts"
   },
   "devDependencies": {

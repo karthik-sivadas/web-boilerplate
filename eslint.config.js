@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import { boundaryPlugin } from "./scripts/boundaries.ts";
 import query from "@tanstack/eslint-plugin-query";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -30,6 +31,7 @@ export default tseslint.config(
   reactHooks.configs.flat.recommended,
   reactRefresh.configs.vite,
   {
+    plugins: { architecture: boundaryPlugin },
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -37,6 +39,7 @@ export default tseslint.config(
       },
     },
     rules: {
+      "architecture/layer-boundaries": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_" },

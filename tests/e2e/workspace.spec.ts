@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { signUpUI } from "./auth-fixtures";
+import { signUpUI, seedWorkspace } from "./auth-fixtures";
+const fixtureIds = new WeakMap<Page, { foundation: string; archive: string }>();
 
 const unexpectedBrowserMessages = new WeakMap<Page, string[]>();
 const expectedNotFoundNavigation = new WeakSet<Page>();
@@ -37,6 +38,17 @@ test.beforeEach(async ({ page }) => {
   await page.evaluate(() => localStorage.clear());
   await signUpUI(page);
   await expect(page).toHaveURL(/\/$/);
+  const fixture = await seedWorkspace(page.request, new URL(page.url()).origin);
+  fixtureIds.set(page, {
+    foundation: fixture.projects.find(
+      (project) => project.name === "Foundation refresh",
+    )!.id,
+    archive: fixture.projects.find((project) => project.archived)!.id,
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "A clearer way to move work forward" }),
+  ).toBeVisible();
 });
 
 test.afterEach(({ page }) => {
@@ -54,7 +66,7 @@ async function expectNoSeriousAxeIssues(page: Page) {
   ).toEqual([]);
 }
 
-test("creates and renames a project, completes a task journey, persists, resets, and handles 404", async ({
+test("creates and renames a project, completes a task journey, persists, confirms project deletion, and handles 404", async ({
   page,
   request,
 }) => {
@@ -68,7 +80,7 @@ test("creates and renames a project, completes a task journey, persists, resets,
       .locator("h1")
       .evaluate((element) => getComputedStyle(element).fontFamily),
   ).toContain("Oxanium");
-  const health = await request.get("/api/health");
+  const health = await request.get("/health/live");
   expect(health.status()).toBe(200);
   expect(health.headers()["cache-control"]).toBe("no-store");
   expect(health.headers()["x-content-type-options"]).toBe("nosniff");
@@ -124,7 +136,7 @@ test("creates and renames a project, completes a task journey, persists, resets,
   await page.reload();
   await expect(page.getByText("Prepare launch brief")).toBeVisible();
 
-  await page.goto("/projects/p-archive");
+  await page.goto(`/projects/${fixtureIds.get(page)!.archive}`);
   await expect(page.getByText(/cannot receive new tasks/i)).toBeVisible();
   await page.getByRole("link", { name: /View in tasks/i }).click();
   await page.getByRole("button", { name: "New task" }).click();
@@ -141,13 +153,24 @@ test("creates and renames a project, completes a task journey, persists, resets,
     .getByRole("button", { name: /Delete Prepare launch brief/i })
     .click();
   await page.getByRole("button", { name: "Delete task" }).click();
-  await expect(page.getByText("Prepare launch brief")).not.toBeVisible();
+  await expect(
+    page.getByText("Prepare launch brief", { exact: true }),
+  ).not.toBeVisible();
 
-  await page.getByRole("link", { name: "Demo settings", exact: true }).click();
-  await page.getByRole("button", { name: "Reset data" }).click();
-  await page.getByRole("button", { name: "Reset demo data" }).click();
   await page.getByRole("link", { name: "Projects", exact: true }).click();
-  await expect(page.getByText("Launch brief")).not.toBeVisible();
+  await page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: "Launch brief" })
+    .getByRole("link", { name: "Open" })
+    .click();
+  await page
+    .getByRole("button", { name: "Delete project", exact: true })
+    .click();
+  await page.getByLabel("Confirm project name").fill("Launch brief");
+  await page.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Launch brief", exact: true }),
+  ).toHaveCount(0);
   expectedNotFoundNavigation.add(page);
   await page.goto("/missing");
   await expect(
@@ -163,7 +186,7 @@ test("open dialogs trap and restore focus, and every primary screen has no serio
     "/projects",
     "/tasks",
     "/settings",
-    "/projects/p-foundation",
+    `/projects/${fixtureIds.get(page)!.foundation}`,
   ]) {
     await page.goto(route);
     await expectNoSeriousAxeIssues(page);

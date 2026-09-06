@@ -3,12 +3,13 @@
   "globalDependencies": [
     "tsconfig.json",
     "eslint.config.js",
+    "scripts/boundaries.ts",
     "pnpm-workspace.yaml"
   ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".output/**"],
+      "outputs": [".output/**", "dist/**"],
       "cache": false
     },
     "dev": { "cache": false, "persistent": true },

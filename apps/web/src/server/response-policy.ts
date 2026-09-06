@@ -3,7 +3,7 @@ export function privateResponse(
   request: Request,
   response: Response,
 ): Response {
-  if (new URL(request.url).pathname === "/api/health") return response;
+  if (new URL(request.url).pathname === "/health/live") return response;
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "private, no-store");
   // Cloning Headers preserves distinct Set-Cookie entries, unlike joining their values.

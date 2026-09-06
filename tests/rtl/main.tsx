@@ -1,4 +1,9 @@
 import { useLayoutEffect } from "react";
+import { SessionActions as SessionActionsContext } from "../../apps/web/src/features/auth/session-context";
+const fixtureIdentity = {
+  sessionId: "rtl-session",
+  user: { id: "rtl-fixture", name: "RTL fixture", email: "rtl@example.test" },
+};
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -30,17 +35,27 @@ function Layout() {
     document.documentElement.dir = dir;
   }, [lang, dir]);
   return (
-    <WorkspaceProvider userId="rtl-fixture">
-      <WorkspaceShell
-        user={{
-          id: "rtl-fixture",
-          name: "RTL fixture",
-          email: "rtl@example.test",
-        }}
-      >
-        <Outlet />
-      </WorkspaceShell>
-    </WorkspaceProvider>
+    <SessionActionsContext.Provider
+      value={{
+        identity: fixtureIdentity,
+        epoch: 0,
+        canAct: () => true,
+        reconcile: async () => {},
+        signOut: async () => {},
+      }}
+    >
+      <WorkspaceProvider userId="rtl-fixture">
+        <WorkspaceShell
+          user={{
+            id: "rtl-fixture",
+            name: "RTL fixture",
+            email: "rtl@example.test",
+          }}
+        >
+          <Outlet />
+        </WorkspaceShell>
+      </WorkspaceProvider>
+    </SessionActionsContext.Provider>
   );
 }
 const root = createRootRoute({ component: Layout });
