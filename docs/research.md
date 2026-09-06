@@ -4,7 +4,7 @@
 
 ## Decisions in this repository
 
-The starter adopts a small, credential-free browser demo, deterministic checks, typed routing, and a portable Node artifact. It deliberately does **not** preselect authentication, a database, cloud sync, telemetry, queues, email, billing, or a hosting vendor. Those need product-specific threat modelling, ownership, and tests.
+The original research baseline was a credential-free browser demo. The subsequent approved feature now selects Better Auth 1.7.3 with single-instance SQLite and the exact shadcn aria-lyra Start monorepo preset; see ADR 002/003. Local authentication phase-2 gates now pass ([test mapping](auth-verification.md)); independent security and hosted deployment acceptance remain pending. Cloud sync, telemetry, queues, email, billing and hosting vendor remain unselected and need product-specific threat modelling, ownership and tests.
 
 | Source                                                                                      | What the source demonstrates                                                                                                       | Adopt / reject decision                                                                                                                      |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -64,7 +64,7 @@ The project tests the selected coherent set rather than independently floating r
 | P1       | Configuration                  | Safe defaults and documented environment contract                 | Validate required production configuration and secrets at startup.                        |
 | P1       | Security                       | Minimal health response and baseline headers                      | Deployment threat model, CSP/proxy review, input validation and safe errors.              |
 | P1       | Accessibility                  | Semantic UI and automated checks                                  | Keyboard and assistive-technology review of critical product journeys.                    |
-| P1       | Auth/data/operations           | None selected by default                                          | Add server-side authZ, migrations, backups, observability and ownership with the product. |
+| P1       | Auth/data/operations           | Better Auth/SQLite selected; security acceptance pending          | Add server-side authZ, migrations, backups, observability and ownership with the product. |
 | P2       | Product extensions             | i18n, flags, uploads, jobs, email, billing                        | Add only for an actual feature, with provider contract and failure tests.                 |
 | P2       | Performance/release operations | No claimed budgets or CDN policy                                  | Define budgets, previews, rollback, monitoring and incident process.                      |
 

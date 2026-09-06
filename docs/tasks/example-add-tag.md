@@ -15,6 +15,6 @@
 
 ## Production impact
 
-- No authentication or server writes in this demo. A future API needs tenant authorization and a migration.
+- Extend `apps/web/src/features/workspace`; shared controls belong in `packages/ui`. Account auth exists, but workspace writes remain browser-local. A future cloud API needs tenant authorization, a migration, and independent security acceptance (local phase-2 regression evidence is not certification).
 - Check color contrast; tags must not be the only status signal.
 - Document migration and rollback before shipping.

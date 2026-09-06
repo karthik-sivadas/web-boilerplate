@@ -1,0 +1,33 @@
+.page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1.25rem;
+}
+.card {
+  width: min(100%, 26rem);
+}
+.header {
+  padding-bottom: 0.25rem;
+}
+.title {
+  font-size: 1.65rem;
+  letter-spacing: -0.04em;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+}
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+.error {
+  color: var(--destructive);
+  font-size: 0.9rem;
+}
+.note {
+  color: var(--muted-foreground);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
