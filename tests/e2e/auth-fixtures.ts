@@ -5,6 +5,71 @@ import {
   type APIResponse,
   type Page,
 } from "@playwright/test";
+import {
+  sessionSchema,
+  importResultSchema,
+} from "../../packages/contracts/src/v1/index";
+export async function seedWorkspace(
+  request: APIRequestContext,
+  origin: string,
+) {
+  const session = sessionSchema.parse(
+    await (await request.get(`${origin}/api/v1/session`)).json(),
+  );
+  const stamp = "2026-01-15T09:00:00.000Z";
+  const projects = [
+    {
+      id: "p-foundation",
+      name: "Foundation refresh",
+      description: "A dependable place to start.",
+      archived: false,
+    },
+    {
+      id: "p-research",
+      name: "Customer research",
+      description: "Discovery calls.",
+      archived: false,
+    },
+    {
+      id: "p-archive",
+      name: "Completed experiments",
+      description: "Earlier work.",
+      archived: true,
+    },
+  ];
+  const tasks = [
+    {
+      id: "t-brief",
+      projectId: "p-foundation",
+      title: "Review the implementation brief",
+      description: "Align the scope.",
+      status: "done",
+    },
+    {
+      id: "t-shell",
+      projectId: "p-foundation",
+      title: "Shape the workspace shell",
+      description: "Clear navigation.",
+      status: "in_progress",
+    },
+    {
+      id: "t-interviews",
+      projectId: "p-research",
+      title: "Synthesize five interview notes",
+      description: "Capture themes.",
+      status: "todo",
+    },
+  ].map((task) => ({ ...task, createdAt: stamp, updatedAt: stamp }));
+  const response = await request.post(`${origin}/api/v1/workspace/import`, {
+    headers: { Origin: origin, "X-Expected-Session-Id": session.sessionId },
+    data: {
+      expectedRevision: 0,
+      data: { version: 1, workspace: { projects, tasks } },
+    },
+  });
+  expect(response.status()).toBe(200);
+  return importResultSchema.parse(await response.json()).workspace;
+}
 export const credentials = () => ({
   name: "Browser User",
   email: `${randomUUID()}@example.test`,

@@ -1,9 +1,24 @@
 # Architecture
 
-Root pnpm workspaces/Turbo orchestrate `apps/web` (Start/Nitro app) and `packages/ui` (official React Aria controls, theme/fonts and source exports). Root `scripts/agents` and `tests` retain orchestration. App source, unit tests, Vite config and auth setup live under `apps/web`; shared UI contains no auth/server code. See [ADR 003](adr-003-aria-monorepo.md) for exact preset provenance and ownership.
+See [ADR 004](adr-004-layered-postgres.md) for decisions/diagram and [research](architecture-research.md) for their sources. PostgreSQL supersedes historical SQLite recommendations.
 
-TanStack Start file routes SSR-render a deterministic loading shell. A new router is created by `getRouter`; the root creates a QueryClient for that render rather than a module-global client. `WorkspaceProvider` only touches `window.localStorage` in an effect, after hydration and mounted session verification. `SessionBoundary` reconciles the real SDK HTTP session with a fresh read-only RPC identity. Pending/error/mismatch removes private UI, expires action leases and clears/cancels queries; session-ID/epoch keys isolate replacements, even for the same user. Focus/visibility/cross-tab/poll events recheck, with HTTP refreshing cookies and guards staying read-only. See [auth tests and timing limits](auth-verification.md).
+```text
+Browser: route → page/component → session-scoped query/action → contracts
+                                 ↓ same-origin HTTP
+Web: Start SSR + fixed Nitro proxy (no SQL/auth secret)
+                                 ↓ private fixed API URL
+API: Hono/auth/HTTP → core application ports → core rules
+                       ↑ PostgreSQL semantic transaction adapter
+                       ↓
+              PostgreSQL auth/workspace/receipts/revisions
+```
 
-`domain.ts` owns Zod schemas and immutable transitions. `persistence.ts` owns a version-1 `{version, workspace}` envelope and validates every read. Invalid JSON, unknown versions, or invalid references show recovery; failed writes preserve previous data and require explicit consent before memory mode.
+`packages/workspace-core` owns pure immutable rules and application orchestration with injected actor, time and IDs. It has no React/HTTP/SQL/browser/environment imports. `packages/contracts` owns strict independent wire DTOs. API adapters translate these to core operations and implement owner-scoped transactions. `packages/ui` remains presentation-only and preserves the exact Aria stone/orange Outfit/Oxanium/Hugeicons preset. ESLint resolves imports, exports and dynamic imports to their actual files, including relative bypasses; executable consumer failure fixtures exercise the rule.
 
-Vite builds Start client/server bundles. The approved `nitro@3.0.260903-beta` Node preset wraps Start's Fetch handler with H3 and copies client assets into `apps/web/.output/public`; this is an actual Node server artifact, not Vite preview. Nitro 3 is intentionally a pinned beta, so target-container smoke testing is required before release claims.
+Web workspace code is split into API client, request/query coordination, view-model projections, components, pages and an explicit read-only legacy preview adapter. Thin route files compose these. New accounts are empty; no demo/local-storage write fallback exists. Failed mutations keep drafts open, make uncertainty visible and require canonical reload before another write.
+
+Start creates request-specific router/query state rather than a shared SSR client. Server identity uses only the incoming Cookie against `/api/v1/session`; a dependency outage is not treated as guest. Mounted `SessionBoundary` reconciles Better Auth's public HTTP session with a fresh read-only RPC identity. Pending/error/mismatch removes private UI, revokes leases and cancels/clears queries. User/session/epoch cache keys isolate replacements, including same-user sessions. Every workspace read/write sends the session ID captured by its initiating lease. The API verifies the cookie first, compares intent before business access, and returns `SESSION_CHANGED` on mismatch. Pre/post lease checks reject late responses without replaying drafts.
+
+Vite/Start build separate client/server bundles; the pinned Nitro 3 Node target emits `apps/web/.output`. The API bundles into `apps/api/dist`, including migration SQL and separate operator CLIs. Neither runtime needs workspace source. Builds/startup never migrate. Web and API liveness are independent of dependencies; readiness fails closed on database/migration errors. Timeouts do not prove SQL rollback.
+
+Root pnpm/Turbo orchestrate both applications and the three packages. Root agent runner remains unchanged. See [operations](postgres-operations.md), [verification mapping](postgres-verification.md), and [release checklist](tasks/layered-postgres.md). Independent review/publication remains supervisor-owned.

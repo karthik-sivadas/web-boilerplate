@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16.15-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Select an explicit generated environment file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+      POSTGRES_DB: ${POSTGRES_DB:?Required}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres/init-test.sql:/docker-entrypoint-initdb.d/010-test.sql:ro
+    healthcheck:
+      test:
+        ["CMD-SHELL", 'pg_isready -q -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  api:
+    build:
+      context: .
+      target: api
+    environment: &api-environment
+      DATABASE_URL: ${CONTAINER_DATABASE_URL:?Required}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Required}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  migrate:
+    build:
+      context: .
+      target: api
+    profiles: [tools]
+    environment: *api-environment
+    command: [node, dist/migrate.mjs]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_started
+volumes:
+  postgres-data:

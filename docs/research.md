@@ -4,6 +4,8 @@
 
 ## Decisions in this repository
 
+**Current architecture/database decision:** the latest user directive selects a layered standalone PostgreSQL backend, superseding the SQLite selection below. See [current architecture research](architecture-research.md), [ADR 004](adr-004-layered-postgres.md) and [staged acceptance](tasks/layered-postgres.md). Historical findings below remain context, not current database guidance.
+
 The original research baseline was a credential-free browser demo. The subsequent approved feature now selects Better Auth 1.7.3 with single-instance SQLite and the exact shadcn aria-lyra Start monorepo preset; see ADR 002/003. Local authentication phase-2 gates now pass ([test mapping](auth-verification.md)); independent security and hosted deployment acceptance remain pending. Cloud sync, telemetry, queues, email, billing and hosting vendor remain unselected and need product-specific threat modelling, ownership and tests.
 
 | Source                                                                                      | What the source demonstrates                                                                                                       | Adopt / reject decision                                                                                                                      |

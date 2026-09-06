@@ -1,6 +1,6 @@
 # Workbench
 
-A polished, local-first TanStack Start foundation. It deliberately ships a useful browser-only workspace instead of pretend SaaS infrastructure.
+A TanStack Start web application with a standalone Hono API and PostgreSQL-backed, account-scoped workspaces.
 
 ## Quick start
 
@@ -18,33 +18,38 @@ Requires Node `24.13.1` and pnpm `11.7.0`.
 ```sh
 corepack enable
 pnpm install --frozen-lockfile
-pnpm dev
-# configuration-free build; configure runtime before pnpm start (see deployment)
+pnpm setup:local       # missing-only private configuration; never migrates
+pnpm db:up             # owned Compose PostgreSQL, unless using an existing configured server
+pnpm db:migrate        # explicit reviewed migrations
+pnpm dev               # web + API with separate environments
+# configuration-free build; configure runtime before starting artifacts
 pnpm build
 ```
 
-Open `http://localhost:3000` after `pnpm dev`. Development needs no `.env`: it reuses repository-root `.data` for local SQLite and a stable development secret, discovered from the nearest `pnpm-workspace.yaml` ancestor even when running in `apps/web`. Production requires runtime-only `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and absolute `AUTH_DATABASE_PATH`; see [deployment](docs/deployment.md). Install Chromium before browser verification: `pnpm exec playwright install --with-deps chromium`.
+Open `http://localhost:3000`. Setup creates `.data/development.env` with mode 0600 only when absent; inherited environment wins over dotenv values. Existing files/secrets are never overwritten. Use `--config=/absolute/selected.env` for a different operator-selected configuration. Existing SQLite/browser data is never automatically opened or imported. See [PostgreSQL operations and preservation](docs/postgres-operations.md). Install Chromium with `pnpm exec playwright install --with-deps chromium`.
 
 ## Commands
 
-`pnpm verify` runs `format:check`, `lint`, `typecheck`, `test:coverage`, `build`, `test:artifact`, then `test:e2e`; Playwright starts the built Nitro Node artifact for workspace journeys, never Vite preview. A separate test-only Vite entry exercises the same app locale/controls in RTL; it is not a production route. Other scripts are `dev`, `start`, `test`, `format`, and `agent`. Set `PLAYWRIGHT_BASE_URL` only when testing an already-running external artifact (the Docker CI job does this).
+`pnpm verify` includes formatting, enforced import boundaries, types, root coverage, real-PG API tests, both builds, source-free artifact/browser outage checks, and desktop/mobile Playwright. Supply inherited `TEST_DATABASE_URL` and `PG_TEST_ADMIN_URL` pointing at an explicit test administrator database; tests allocate only random owned schemas/databases. `pnpm test:docker` separately creates and cleans its own Compose project/volume and proves real PostgreSQL/API restart and outage behavior. The standalone RTL Vite entry uses synthetic DTO fixtures, never production seeding. See [verification mapping](docs/postgres-verification.md).
 
 ## What is included
 
 - Same-origin Better Auth email/password accounts with database-authoritative seven-day sessions; email ownership is unverified and SMTP, recovery, verification, and OAuth are deferred.
-- Responsive overview, projects, tasks, archive rules, reset controls, official shadcn React Aria Lyra controls, and SSR guest redirects.
-- Account-partitioned, versioned localStorage with recovery and honest in-memory fallback. It is local UI partitioning, not cloud sync or protection from browser-profile/devtools access.
-- TanStack Start SSR routed through a pinned Nitro 3 beta Node-server artifact; startup migrations gate every request until ready and `GET /api/health` is no-store.
+- Responsive overview, projects, tasks, archive rules, name-confirmed cascade deletion, official shadcn React Aria Lyra controls, and authoritative SSR guest redirects.
+- PostgreSQL owner-scoped CRUD with revision and expected-session preconditions; failed writes retain drafts and require explicit reconciliation, never local fallback.
+- Versioned export, explicit empty-account import, durable duplicate receipts and revision-guarded rollback; legacy browser bytes are previewed only on request and never changed.
+- Fixed same-origin web proxy. Independent `/health/live`, dependency-aware `/health/ready`, bounded operations and explicit migrations; runtime/build never migrate.
 - A small Pi orchestration CLI with bounded JSONL parsing and no automatic publication.
 
-This is **not** cloud workspace persistence, collaboration, billing, email verification/recovery, OAuth, or a production certification. See [production readiness](docs/production-readiness.md) and the [research landscape](docs/research.md).
+This is **not** collaboration, billing, email verification/recovery, OAuth, or a production certification. See [production readiness](docs/production-readiness.md) and the [research landscape](docs/research.md).
 
 ## File map
 
-- `apps/web/src/routes` route composition and health endpoint
-- `apps/web/src/features/{workspace,auth}` domain, persistence, account UI
-- `apps/web/src/lib/auth`, `apps/web/src/server/plugins/auth.ts` server-only auth and startup gate
-- `apps/web/scripts/auth-setup.ts`, `apps/web/vite.config.ts` app tooling
+- `apps/web/src/routes` thin route composition; workspace API/hooks/view-models/components/pages below `features/workspace`
+- `apps/web/src/server` fixed proxy/SSR identity adapters, with no database or auth secret
+- `apps/api` standalone HTTP/auth composition, PostgreSQL adapters and explicit migrations
+- `packages/workspace-core` pure rules and semantic application ports; `packages/contracts` independent wire DTOs
+- `scripts/local.ts` integrated setup/development/migration commands
 - `packages/ui/src` official Aria controls, hooks, utility, shared CSS/fonts
 - `scripts/agents` executable runner; `agents` Astra profile instructions
 - `tests` root orchestration/Playwright/RTL harness; unit tests colocated with source
@@ -58,7 +63,7 @@ pnpm dlx shadcn@latest init --preset b5rR41Mtnc --base aria --template start --m
 
 This command generated an isolated reference, not an overwrite of the working repository. CLI 4.21.0, upstream template HEAD `7c9eaba1c0a6404c990c144a654792e3313c650d`; merged structure retains our exact toolchain pins and Nitro integration. Shared UI uses stone/orange, Outfit/Oxanium, Hugeicons, menu default/subtle, radius token 0.625rem and Lyra square controls. Default language/direction is English/LTR; the shared Aria locale path is RTL-ready, not an Arabic translation. See [ADR 003](docs/adr-003-aria-monorepo.md).
 
-**Auth phase-2 local gates pass:** mounted session reconciliation, real SQLite/auth/startup tests and production-artifact browser/cache/401 regressions are covered by 75 tests and 14 browser executions. Independent review and hosted Docker/deployment acceptance still block release. See [test mapping and limits](docs/auth-verification.md).
+Releases require the documented verification gates, review and a separately authorized publication action. Local test results do not imply review approval or hosted CI/deployment acceptance. See [verification and evidence limits](docs/postgres-verification.md).
 
 ## Agent runner
 
@@ -72,6 +77,6 @@ It uses your already-installed `pi` and external authentication; it never copies
 
 ## Deployment
 
-`Dockerfile` builds a non-root Node 24.13.1 image and copies `apps/web/.output` into runtime `/app/.output` and runs `.output/server/index.mjs`. HSTS belongs at an HTTPS proxy, not local HTTP. Read [deployment](docs/deployment.md) before production use.
+`Dockerfile` builds separate non-root Node 24.13.1 `web` and `api` targets containing only built artifacts. Compose supplies PostgreSQL; web receives only `API_INTERNAL_URL`, while API receives database/auth configuration. HSTS and public TLS belong at the HTTPS proxy. Read [PostgreSQL operations](docs/postgres-operations.md) before deployment.
 
 MIT © Karthik Sivadas.

@@ -1,0 +1,27 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint src scripts",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && vitest run --config vitest.config.ts",
+    "build": "node scripts/build.mjs",
+    "migrate": "tsx src/migrate.ts",
+    "start": "node dist/main.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@workspace/core": "workspace:*",
+    "@workspace/contracts": "workspace:*",
+    "better-auth": "1.7.3",
+    "hono": "4.13.7",
+    "pg": "8.20.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/pg": "8.20.0",
+    "esbuild": "0.28.2"
+  }
+}

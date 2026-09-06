@@ -1,113 +1,145 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { request as httpRequest } from "node:http";
+import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-
-const directory = await mkdtemp(join(tmpdir(), "auth-artifact-proof-"));
-const env: NodeJS.ProcessEnv = {
-  ...process.env,
-  NODE_ENV: "production",
-  NODE_PATH: "",
-  HOST: "127.0.0.1",
-  PORT: "4186",
-};
-delete env.BETTER_AUTH_SECRET;
-delete env.BETTER_AUTH_URL;
-delete env.AUTH_DATABASE_PATH;
-async function run(variables: NodeJS.ProcessEnv, ready: boolean) {
-  const child = spawn(process.execPath, [".output/server/index.mjs"], {
-    cwd: directory,
-    env: variables,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let log = "";
-  child.stdout.on("data", (data: Buffer) => {
-    log += data.toString();
-  });
-  child.stderr.on("data", (data: Buffer) => {
-    log += data.toString();
-  });
-  const exit = new Promise<number | null>((resolve, reject) => {
-    child.once("exit", resolve);
-    child.once("error", reject);
-  });
-  const timeout = setTimeout(() => child.kill("SIGKILL"), 20_000);
-  try {
-    if (!ready) {
-      assert.equal(await exit, 1);
-      assert.match(log, /Initialization failed/);
-      return;
-    }
-    let healthy = false;
-    for (let i = 0; i < 60; i++) {
-      try {
-        const r = await fetch("http://127.0.0.1:4186/api/health", {
-          signal: AbortSignal.timeout(1000),
-        });
-        if (r.ok) {
-          assert.equal(r.headers.get("cache-control"), "no-store");
-          healthy = true;
-          break;
-        }
-      } catch {
-        /* bounded boot polling */
-      }
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    assert.ok(healthy, "source-free artifact must become ready");
-    const response = await fetch("http://127.0.0.1:4186/sign-in", {
-      signal: AbortSignal.timeout(5000),
-    });
-    assert.equal(response.status, 200);
-    assert.match(await response.text(), /<html lang="en" dir="ltr"/);
-    assert.equal(response.headers.get("cache-control"), "private, no-store");
-  } finally {
-    child.kill("SIGTERM");
-    await exit;
-    clearTimeout(timeout);
-  }
-}
+import { randomUUID } from "node:crypto";
+import { chromium } from "playwright";
+import { artifactRuntime } from "./artifact-runtime";
+import {
+  sessionSchema,
+  workspaceSchema,
+} from "../packages/contracts/src/v1/index";
+const runtime = await artifactRuntime();
+const browser = await chromium.launch();
 try {
-  await cp(resolve("apps/web/.output"), join(directory, ".output"), {
-    recursive: true,
-  });
-  await run(env, false);
-  await run(
+  const page = await browser.newPage();
+  await page.goto(`${runtime.origin}/sign-up`);
+  await page.getByLabel("Name", { exact: true }).fill("Artifact User");
+  await page
+    .getByLabel("Email", { exact: true })
+    .fill(`${randomUUID()}@example.test`);
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("Synthetic-artifact-password-123!");
+  await page
+    .getByRole("button", { name: "Create account", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "A clearer way to move work forward" })
+    .waitFor();
+  const session = sessionSchema.parse(
+    await (await page.request.get(`${runtime.origin}/api/v1/session`)).json(),
+  );
+  const response = await page.request.post(
+    `${runtime.origin}/api/v1/projects`,
     {
-      ...env,
-      BETTER_AUTH_SECRET: randomBytes(48).toString("hex"),
-      BETTER_AUTH_URL: "http://127.0.0.1:4186",
-      AUTH_DATABASE_PATH: join(directory, "auth.sqlite"),
+      headers: {
+        Origin: runtime.origin,
+        "X-Expected-Session-Id": session.sessionId,
+        "x-user-id": "spoof",
+      },
+      data: { name: "Artifact retained", description: "", expectedRevision: 0 },
     },
-    true,
   );
-  assert.equal((await readdir(directory)).includes(".data"), false);
+  assert.equal(response.status(), 200);
+  assert.equal(workspaceSchema.parse(await response.json()).revision, 1);
+  await page.goto(`${runtime.origin}/projects`);
+  await page.getByRole("heading", { name: "Artifact retained" }).waitFor();
+  const currentCookie = (await page.context().cookies())
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join("; ");
+  const headers = {
+    cookie: currentCookie,
+    Origin: runtime.origin,
+    "X-Expected-Session-Id": session.sessionId,
+    "Content-Type": "application/json",
+  };
+  const oversized = await new Promise<number | undefined>(
+    (resolveStatus, reject) => {
+      const upload = httpRequest(
+        `${runtime.origin}/api/v1/projects`,
+        { method: "POST", headers },
+        (response) => {
+          response.resume();
+          response.once("end", () => resolveStatus(response.statusCode));
+        },
+      );
+      upload.once("error", reject);
+      upload.write("x".repeat(1024 * 1024));
+      upload.end("x".repeat(1024 * 1024 + 1));
+    },
+  );
+  assert.equal(oversized, 413);
+  await new Promise<void>((resolveClose) => {
+    const partial = httpRequest(`${runtime.origin}/api/v1/projects`, {
+      method: "POST",
+      headers,
+    });
+    partial.on("error", () => {});
+    partial.once("close", resolveClose);
+    partial.write('{"expectedRevision":', () => partial.destroy());
+  });
   assert.equal(
-    (await readdir(directory)).includes("pnpm-workspace.yaml"),
-    false,
+    workspaceSchema.parse(
+      await (
+        await page.request.get(`${runtime.origin}/api/v1/workspace`, {
+          headers: { "X-Expected-Session-Id": session.sessionId },
+        })
+      ).json(),
+    ).revision,
+    1,
   );
-  const assets = resolve("apps/web/.output/public/assets");
-  for (const file of await readdir(assets))
-    if (file.endsWith(".js")) {
-      const source = await readFile(join(assets, file), "utf8");
-      for (const forbidden of [
-        "node:sqlite",
-        "AUTH_DATABASE_PATH",
-        "better-auth-secret",
-        "getMigrations",
-        "PRAGMA foreign_keys",
-        "rtl-fixture",
-      ])
-        assert.ok(
-          !source.includes(forbidden),
-          `client leaked server code: ${file} ${forbidden}`,
-        );
-    }
+  await runtime.stopApi();
+  assert.equal((await fetch(`${runtime.origin}/health/live`)).status, 200);
+  assert.equal((await fetch(`${runtime.origin}/health/ready`)).status, 503);
+  const outage = await page.reload();
+  assert.equal(outage?.status(), 503);
+  assert.equal(outage?.headers()["cache-control"], "private, no-store");
+  assert.ok(!(await page.textContent("body"))?.includes("Artifact retained"));
+  runtime.startApi();
+  await runtime.ready();
+  await page.goto(`${runtime.origin}/projects`);
+  await page.getByRole("heading", { name: "Artifact retained" }).waitFor();
+  const oldCookie = (await page.context().cookies())
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join("; ");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.waitForURL(/sign-in$/);
+  assert.equal(
+    (
+      await fetch(`${runtime.origin}/api/v1/session`, {
+        headers: { cookie: oldCookie },
+      })
+    ).status,
+    401,
+  );
+  assert.ok(!(await readdir(runtime.directory)).includes("node_modules"));
+  assert.ok(!(await readdir(runtime.directory)).includes(".data"));
+  // Artifact leakage check complements (does not substitute for) enforced import boundaries.
+  for (const directory of [
+    resolve("apps/web/.output/public/assets"),
+    resolve("apps/web/.output/server"),
+  ])
+    for (const file of await readdir(directory, { recursive: true }))
+      if (/\.(?:m?js)$/.test(file)) {
+        const code = await readFile(join(directory, file), "utf8");
+        for (const forbidden of [
+          "node:sqlite",
+          "AUTH_DATABASE_PATH",
+          "better-auth-secret",
+          "getMigrations",
+          "PostgresDialect",
+          "DATABASE_URL",
+        ])
+          assert.ok(
+            !code.includes(forbidden),
+            `Web artifact includes forbidden server dependency: ${forbidden}`,
+          );
+      }
   console.log(
-    "Artifact checks passed: missing config exits 1; source-free ready/SSR; no dev store; no client auth-runtime leakage.",
+    "Source-free web/API/PG artifact checks passed: browser CRUD, chunked body bound/client disconnect, independent web liveness, readiness/outage, API restart persistence, logout and runtime isolation.",
   );
 } finally {
-  await rm(directory, { recursive: true, force: true });
+  await browser.close();
+  await runtime.close();
 }

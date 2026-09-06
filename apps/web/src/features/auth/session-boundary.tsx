@@ -140,6 +140,12 @@ export function SessionBoundary({
     <SessionActions.Provider
       key={`${state.identity.sessionId}:${state.epoch}`}
       value={{
+        identity: state.identity,
+        epoch: state.epoch,
+        reconcile: () =>
+          controller.revalidate(
+            "Your session changed. Review the current account before continuing.",
+          ),
         canAct: controller.lease(state.epoch),
         signOut: controller.signOut,
       }}

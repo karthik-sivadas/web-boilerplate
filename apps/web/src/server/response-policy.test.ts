@@ -6,7 +6,7 @@ it("adds private no-store to redirects/query-suffixed routes without losing dist
   headers.append("Set-Cookie", "one=value; HttpOnly; SameSite=Lax");
   headers.append("Set-Cookie", "two=value; HttpOnly; SameSite=Lax");
   const response = privateResponse(
-    new Request("http://localhost/projects?probe=/api/health"),
+    new Request("http://localhost/projects?probe=/health/live"),
     new Response(null, { status: 307, headers }),
   );
   expect(response.status).toBe(307);
@@ -20,7 +20,7 @@ it("preserves exact health endpoint no-store and response stream", async () => {
     headers: { "Cache-Control": "no-store" },
   });
   const response = privateResponse(
-    new Request("http://localhost/api/health?probe=x"),
+    new Request("http://localhost/health/live?probe=x"),
     original,
   );
   expect(response).toBe(original);

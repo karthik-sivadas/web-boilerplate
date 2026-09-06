@@ -5,6 +5,7 @@ import {
   credentials,
   paceRateWindow,
   signUpUI,
+  seedWorkspace,
 } from "./auth-fixtures";
 
 test.beforeEach(() => {
@@ -35,6 +36,11 @@ async function axe(page: Page) {
 async function signedUp(page: Page) {
   await page.goto("/sign-up");
   const account = await signUpUI(page);
+  await expect(
+    page.getByRole("heading", { name: "A clearer way to move work forward" }),
+  ).toBeVisible();
+  await seedWorkspace(page.request, new URL(page.url()).origin);
+  await page.reload();
   await expect(
     page.getByRole("heading", { name: "A clearer way to move work forward" }),
   ).toBeVisible();
@@ -226,7 +232,7 @@ test("actual generated protected RPC returns HTTP 401 and cache policy survives 
   page.on("request", (r) => {
     if (r.headers()["x-tsr-serverfn"] === "true") endpoints.add(r.url());
   });
-  await page.getByRole("link", { name: "Demo settings", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();

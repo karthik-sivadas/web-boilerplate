@@ -1,4 +1,6 @@
-# Auth phase-2 verification and limits
+# Historical auth phase-2 verification and limits
+
+**Historical SQLite milestone only.** The counts, storage ownership and startup semantics below are not claims about the current PostgreSQL runtime. Use [current verification](postgres-verification.md) and [operations](postgres-operations.md).
 
 Local `pnpm verify` passes **75 tests in 9 files and 20 browser executions**. All original 39 tests and six browser executions remain. The independent supervisor/security review and hosted Docker deployment proof are still release gates; this is not production certification.
 
