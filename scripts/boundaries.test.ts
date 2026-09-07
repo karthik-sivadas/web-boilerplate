@@ -127,6 +127,33 @@ it.each([
     ),
   ).toBe(true);
 });
+it.each([
+  "node:sqlite",
+  "sqlite",
+  "sqlite3",
+  "better-sqlite3",
+  "@libsql/client",
+  "@sqlite.org/sqlite-wasm",
+])("rejects SQLite driver %s in application layers", async (driver) => {
+  for (const layer of [
+    "apps/api",
+    "apps/web",
+    "packages/ui",
+    "packages/contracts",
+    "packages/workspace-core",
+  ]) {
+    for (const code of [
+      `import db from "${driver}";`,
+      `const db = require("${driver}");`,
+      `const db = import("${driver}");`,
+    ]) {
+      const [result] = await eslint.lintText(code, {
+        filePath: resolve(root, layer, "src/consumer.ts"),
+      });
+      expect(result?.errorCount, `${layer}: ${code}`).toBeGreaterThan(0);
+    }
+  }
+});
 it("permits intended inward imports and presentation contracts", async () => {
   for (const [file, code] of [
     [

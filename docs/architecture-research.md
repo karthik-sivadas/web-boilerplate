@@ -51,4 +51,6 @@ A cookie-authorized request can still carry the wrong tab's intent: tab A captur
 
 ## Preservation and remaining delivery
 
+**Historical M1/M2 sequencing, superseded:** the offline auth utility described here was subsequently implemented and has now been removed by user direction. Current support is PostgreSQL-only with workspace JSON preservation, not SQLite auth preservation.
+
 M1 intentionally leaves existing web browser persistence and SQLite auth code untouched so an incomplete frontend cutover cannot silently strand data. M2 must replace it with explicit remote state and a fixed same-origin proxy, and provide opt-in offline auth preservation using **synthetic fixtures only** during development. Never discover or read a real `.data`, `.env` or browser store. Auth IDs/password hashes/sessions must be preserved by the optional utility; importing an unrelated new PostgreSQL account does not recover old IDs. Browser import/export/receipt/rollback endpoints and UI are M2 requirements, not delivered merely by creating a receipt table.

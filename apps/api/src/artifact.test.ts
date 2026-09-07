@@ -1,7 +1,14 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
-import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { migrations } from "./infrastructure/migrations";
 import { tmpdir } from "node:os";
@@ -14,7 +21,7 @@ import { workspaceSchema, sessionSchema } from "@workspace/contracts/v1";
 
 it("actual rebuild excludes removed migrations and stale files from its owned output", async () => {
   const stale = new URL("../dist/migrations/999-stale.sql", import.meta.url);
-  const staleAsset = new URL("../dist/stale.mjs", import.meta.url);
+  const staleAsset = new URL("../dist/import-auth.mjs", import.meta.url);
   try {
     await writeFile(stale, "CREATE TABLE stale_branch_marker(id integer);\n");
     await writeFile(staleAsset, "throw new Error('stale branch');\n");
@@ -36,7 +43,7 @@ it("actual rebuild excludes removed migrations and stale files from its owned ou
       await migrations(new URL("../dist/migrations/", import.meta.url)),
     ).toEqual(await migrations());
     expect(await readdir(new URL("../dist/", import.meta.url))).not.toContain(
-      "stale.mjs",
+      "import-auth.mjs",
     );
   } finally {
     await rm(stale, { force: true });
@@ -71,7 +78,18 @@ it("boots copied source-free artifact, migrates explicitly, and retains cookie/w
     await cp(new URL("../dist/", import.meta.url), directory, {
       recursive: true,
     });
-    expect(await readdir(directory)).not.toContain("node_modules");
+    expect((await readdir(directory)).sort()).toEqual([
+      "main.mjs",
+      "migrate.mjs",
+      "migrations",
+      "package.json",
+    ]);
+    // Better Auth bundles upstream optional dialects; reject our retired utility,
+    // while ESLint rejects application SQLite imports and config rejects its URLs.
+    for (const entry of ["main.mjs", "migrate.mjs"]) {
+      const code = await readFile(join(directory, entry), "utf8");
+      expect(code).not.toMatch(/importLegacyAuth|confirm-offline|source-copy/);
+    }
     const reservation = createServer();
     reservation.listen(0, "127.0.0.1");
     await once(reservation, "listening");

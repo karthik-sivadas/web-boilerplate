@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { waitForAuthInteractive } from "../auth-readiness";
 import {
   expect,
   type APIRequestContext,
@@ -83,6 +84,7 @@ export async function paceRateWindow(headers: Record<string, string>) {
   await new Promise((resolve) => setTimeout(resolve, (seconds + 1) * 1000));
 }
 export async function signUpUI(page: Page) {
+  await waitForAuthInteractive(page);
   const account = credentials();
   await page.getByLabel("Name", { exact: true }).fill(account.name);
   await page.getByLabel("Email", { exact: true }).fill(account.email);

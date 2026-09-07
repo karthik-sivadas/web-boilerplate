@@ -26,7 +26,7 @@ pnpm dev               # web + API with separate environments
 pnpm build
 ```
 
-Open `http://localhost:3000`. Setup creates `.data/development.env` with mode 0600 only when absent; inherited environment wins over dotenv values. Existing files/secrets are never overwritten. Use `--config=/absolute/selected.env` for a different operator-selected configuration. Existing SQLite/browser data is never automatically opened or imported. See [PostgreSQL operations and preservation](docs/postgres-operations.md). Install Chromium with `pnpm exec playwright install --with-deps chromium`.
+Open `http://localhost:3000`. Setup creates `.data/development.env` with mode 0600 only when absent; inherited environment wins over dotenv values. Existing files/secrets are never overwritten. Use `--config=/absolute/selected.env` for a different operator-selected configuration. The application is PostgreSQL-only; SQLite and offline auth import are unsupported. Browser workspace preview/JSON import remains explicit. See [PostgreSQL operations and preservation](docs/postgres-operations.md). Install Chromium with `pnpm exec playwright install --with-deps chromium`.
 
 ## Commands
 

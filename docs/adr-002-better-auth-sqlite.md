@@ -1,5 +1,7 @@
 # ADR 002: Better Auth with controlled local SQLite startup
 
+**Superseded historical record — not setup instructions.** [ADR 004](adr-004-layered-postgres.md) replaced this runtime with PostgreSQL. SQLite support and the later offline auth importer are now removed. Use [current operations](postgres-operations.md); the paths, commands and requirements below describe only the former implementation.
+
 Workbench uses `better-auth@1.7.3` with its built-in Kysely adapter and Node 24.13.1's experimental `node:sqlite` `DatabaseSync`. This avoids an ORM, native addon, and external service. The Node pin and artifact/Docker checks are mandatory because `node:sqlite` remains experimental on this pinned release.
 
 A single-flight runtime initializer validates configuration, opens SQLite with foreign keys and a bounded busy timeout, builds Better Auth, and runs `getMigrations(auth.options).runMigrations()`. It is shared by `pnpm auth:setup` and runtime startup; migrations never run during the build.

@@ -23,7 +23,7 @@ Latest user instruction authorizes full PostgreSQL implementation; only the supe
 - [x] Request-scoped SSR identity, session/epoch query keys and action leases; captured expected-session header; actual-cookie stale mutation/read browser proof; no replay/local fallback and retained failed drafts.
 - [x] Empty-only import/export, ID/reference remapping, durable duplicate receipts recoverable after refresh, revision-guarded rollback and maximum-byte roundtrip tests.
 - [x] Explicit browser preview/download/import; anonymous/old keys unchanged.
-- [x] Optional offline auth CLI: explicit read-only SQLite copy, stable-secret assertion, preserved IDs/hashes/sessions, synthetic fixtures only.
+- Retired by subsequent user direction: the previously implemented offline SQLite auth CLI and its synthetic tests. PostgreSQL-only removal and forward migration are tracked in [SQLite removal](remove-sqlite.md).
 - [x] Resolved-import ESLint boundaries, relative/root-tooling/dependency bypass and CommonJS consumer failures; transitional web domain/persistence removed.
 - [x] Compose, integrated setup/dev/migrate, CI real PostgreSQL, current deployment/backup/preservation runbooks.
 - [x] Real-PG deadline/security/drain regressions plus actual copied-artifact HTTP/browser and owned Docker PostgreSQL restart/API+PG outage/recovery proof. Supervisor's existing service untouched.
@@ -31,4 +31,4 @@ Latest user instruction authorizes full PostgreSQL implementation; only the supe
 
 ## Safety / ownership
 
-Tests require explicit test URLs and generate owned random schemas (all normal/guard/planner pools share the same search_path); artifact tests additionally require an explicitly named test-admin URL and create/drop only their random database. Test helpers refuse development/non-test targets. No existing `.data`, `.env`, browser stores or user databases are read, copied, deleted or migrated by implementation tests. Synthetic config/SQLite/browser fixtures and random owned PostgreSQL targets are the only preservation test inputs. The existing PostgreSQL service/volume belongs to the supervisor. Never stop/reconfigure it or launch agents.
+Tests require explicit test URLs and generate owned random schemas (all normal/guard/planner pools share the same search_path); artifact tests additionally require an explicitly named test-admin URL and create/drop only their random database. Test helpers refuse development/non-test targets. No existing `.data`, `.env`, browser stores or user databases are read, copied, deleted or migrated by implementation tests. Synthetic config/browser fixtures and random owned PostgreSQL targets are the only preservation test inputs. The existing PostgreSQL service/volume belongs to the supervisor. Never stop/reconfigure it or launch agents.

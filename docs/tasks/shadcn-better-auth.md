@@ -1,5 +1,7 @@
 # Feature task: shadcn/ui and Better Auth
 
+**Historical milestone, superseded for storage/auth startup.** SQLite support and the later offline importer are removed. The requirements and counts below describe prior work, not current setup or acceptance. See [current PostgreSQL operations](../postgres-operations.md) and [verification](../postgres-verification.md).
+
 ## Intent and acceptance criteria
 
 Add same-origin email/password authentication backed by Better Auth 1.7.3 and a local SQLite database. Protect all workspace routes while keeping workspace data partitioned in browser storage per authenticated user. Use the user-authoritative exact shadcn aria-lyra preset and apps/web + packages/ui monorepo layout (ADR 003), preserving pinned Nitro/auth integration and Astra high/medium/low profiles.
