@@ -1,6 +1,8 @@
 # ADR 004: Layered modular backend with PostgreSQL
 
-**M2 implementation update:** the remote web cutover, fixed proxy/SSR identity, durable import/export/rollback, optional offline auth utility, resolved-import ESLint boundaries, Compose and real-PG CI are implemented. M1/M2 future-tense notes below record the original sequencing, not remaining SQLite runtime ownership. See [current architecture](architecture.md), [operations](postgres-operations.md), and [verification mapping](postgres-verification.md). Final release remains independently reviewed and supervisor-published.
+**Current update:** SQLite support and the previously implemented optional offline auth utility are retired by user direction. Migration 005 drops its obsolete receipt table while published 004 remains immutable. Historical preservation plans below are superseded.
+
+**M2 implementation update:** the remote web cutover, fixed proxy/SSR identity, durable workspace JSON import/export/rollback, resolved-import ESLint boundaries, Compose and real-PG CI are implemented. M1/M2 future-tense notes below record the original sequencing, not remaining SQLite runtime ownership. See [current architecture](architecture.md), [operations](postgres-operations.md), and [verification mapping](postgres-verification.md). Final release remains independently reviewed and supervisor-published.
 
 - Date: 2026-09-05
 - Decision: approved architecture and explicit PostgreSQL user directive; staged implementation, release acceptance pending

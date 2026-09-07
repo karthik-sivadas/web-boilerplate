@@ -146,6 +146,14 @@ try {
       "-e",
       "if(process.env.DATABASE_URL||process.env.BETTER_AUTH_SECRET||require('node:fs').existsSync('/app/apps')||require('node:fs').existsSync('/app/node_modules'))process.exit(1)",
     );
+    await run(
+      "exec",
+      "-T",
+      "api",
+      "node",
+      "-e",
+      "const fs=require('node:fs');if(JSON.stringify(fs.readdirSync('/app/dist').sort())!==JSON.stringify(['main.mjs','migrate.mjs','migrations','package.json']))process.exit(1);for(const entry of ['main.mjs','migrate.mjs'])if(/importLegacyAuth|confirm-offline|source-copy/.test(fs.readFileSync('/app/dist/'+entry,'utf8')))process.exit(1)",
+    );
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.waitForURL(/sign-in$/);
     console.log(

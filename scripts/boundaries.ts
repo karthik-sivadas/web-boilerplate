@@ -100,7 +100,15 @@ const rule: Rule.RuleModule = {
         /\/node_modules\/pg(?:-[^/]+)?\//.test(normalized) ||
         (/\/node_modules\/better-auth\//.test(normalized) &&
           !normalized.includes("/dist/client/"));
+      const sqliteRuntime =
+        /^(?:node:sqlite|sqlite|sqlite3|better-sqlite3|@libsql\/client|@sqlite\.org\/sqlite-wasm)(?:\/|$)/.test(
+          dependency,
+        ) ||
+        /\/node_modules\/(?:sqlite|sqlite3|better-sqlite3|@libsql\/client|@sqlite\.org\/sqlite-wasm)(?:\/|$)/.test(
+          normalized,
+        );
       const forbidden =
+        sqliteRuntime ||
         (resolved !== undefined && /\.test\.[cm]?[jt]sx?$/.test(resolved)) ||
         rootBypass ||
         ((from === "web" || from === "ui") && sqlRuntime) ||

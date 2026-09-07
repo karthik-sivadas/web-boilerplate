@@ -10,7 +10,7 @@ const staging = await mkdtemp(join(root, ".api-build-"));
 try {
   await build({
     absWorkingDir: root,
-    entryPoints: ["src/main.ts", "src/migrate.ts", "src/import-auth.ts"],
+    entryPoints: ["src/main.ts", "src/migrate.ts"],
     outdir: staging,
     outExtension: { ".js": ".mjs" },
     bundle: true,

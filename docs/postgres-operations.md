@@ -1,6 +1,6 @@
 # PostgreSQL operations and preservation
 
-This is the current runbook. Earlier SQLite deployment/auth documents describe historical milestones, not the current runtime. Publication remains supervisor-controlled.
+This is the current PostgreSQL-only runbook. SQLite support and the offline auth importer have been removed; earlier SQLite documents describe superseded historical milestones. Publication remains supervisor-controlled.
 
 ## Local setup
 
@@ -30,7 +30,7 @@ Alternatively supply inherited `TEST_DATABASE_URL` and `PG_TEST_ADMIN_URL` and r
 
 ## Separate deployment artifacts
 
-`apps/web/.output` runs with `node server/index.mjs` from its artifact directory. `apps/api/dist` runs with `node main.mjs`; it includes bundled production dependencies, migration SQL and separate migration/auth-import entrypoints. Neither needs workspace source or source-linked node_modules. Docker targets `web` and `api` run as a non-root user. Web has no data volume or SQL/auth-runtime dependency. PostgreSQL owns durability.
+`apps/web/.output` runs with `node server/index.mjs` from its artifact directory. `apps/api/dist` runs with `node main.mjs`; it includes bundled production dependencies, migration SQL and a separate `migrate.mjs` entrypoint. No offline auth importer is shipped. Neither needs workspace source or source-linked node_modules. Docker targets `web` and `api` run as a non-root user. Web has no data volume or SQL/auth-runtime dependency. PostgreSQL owns durability.
 
 For the generated local Compose configuration:
 
@@ -52,19 +52,13 @@ New accounts are empty. Settings offers explicit version-1 file preview or readi
 
 Download the preview before import. Imports require an empty target plus its current revision and explicit confirmation; server IDs are remapped transactionally. Canonical sorted-content fingerprints prevent duplicate application. The identical fingerprint remains rejected **even after rollback**: rollback removes the imported workspace, not the durable duplicate receipt, and does not authorize an identical reimport. Durable owner-scoped receipts survive refresh/lost responses through `/api/v1/workspace/import-receipt`. Rollback requires an unrolled receipt and the exact imported revision; any intervening edit prevents rollback. Export is a consistent version-1 envelope. Browser keys are never removed, even after successful import/rollback. Limits are 100 projects, 1000 tasks and a 2-MiB wire body, with a reserved serialized budget so valid workspaces can round-trip.
 
-## Optional offline auth preservation
+## Retired SQLite support and forward migration
 
-This utility is **not** part of normal startup. Stop old writers; have the operator make and verify a consistent offline SQLite backup/copy, including any WAL state through a proper SQLite backup procedure. Keep the original untouched. Preserve the original stable `BETTER_AUTH_SECRET` in the new API environment; the utility cannot cryptographically prove it matches the old installation. The confirmation flag is an operator assertion, not automatic discovery. Email ownership is still unverified; importing records does not verify email.
+SQLite URLs are rejected. There is no SQLite setup, runtime or auth-import path. Workspace JSON import/export, receipts, rollback and explicit browser preview remain supported; browser storage is not SQLite.
 
-After explicitly migrating a new empty PostgreSQL target:
+Migration `005-drop-legacy-auth-receipt.sql` drops only the obsolete offline-auth receipt table, without CASCADE. Published migration `004-legacy-auth-receipt.sql` remains byte-for-byte intact for checksum validation. Existing installations must explicitly apply the forward migration through the normal reviewed migration procedure before running the new artifact; startup/build never applies it. Do not reset PostgreSQL or edit its migration ledger. The supervisor applies this migration after checks and owns any authorized legacy SQLite file deletion; PostgreSQL files, private configuration and secrets are not deletion targets.
 
-```sh
-node apps/api/dist/import-auth.mjs \
-  --source-copy=/absolute/operator-owned-offline-copy.sqlite \
-  --confirm-offline --confirm-stable-secret --timestamp-unit=milliseconds
-```
-
-Choose `seconds` only for a source whose numeric units were verified by the operator. Ambiguous numeric timestamps without a unit fail closed. The utility reads only the selected copy in read-only mode, validates all tables/IDs/FKs/dates/booleans, preserves user/account/session/verification/rate-limit identity, hashes and timestamps, and imports in one bounded PostgreSQL transaction. Invalid calendar dates (including rollover/leap-day errors) and identities incompatible with the runtime user/session contracts are rejected before any target writes; auth IDs are never remapped. It rejects a nonempty target; an identical completed fingerprint is an idempotent receipt. It never deletes or modifies source bytes and never logs credentials. Tests use only temporary synthetic Better Auth SQLite fixtures and real isolated PostgreSQL, including password signin and the original cookie. Original per-user browser keys remain addressable because user IDs are preserved.
+The lockfile retains Better Auth's upstream optional `better-sqlite3` peer declaration. This is metadata, not an installed application driver or supported backend; no dependency or lockfile upgrade is required. The pinned Better Auth/Kysely bundle also retains upstream optional dialect code, including a conditional `node:sqlite` import. Our application supplies only a PostgreSQL pool, never enters that branch, and forbids SQLite driver imports in application layers. Removing upstream code would require dependency patching/replacement, not deleting our SQLite support.
 
 ## Backup, restore and rollback
 
