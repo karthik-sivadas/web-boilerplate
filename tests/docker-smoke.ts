@@ -9,6 +9,10 @@ import { chromium, type Browser } from "playwright";
 import { developmentConfiguration } from "../scripts/development-config";
 import { freePort } from "./artifact-runtime";
 import { sessionSchema } from "../packages/contracts/src/v1/index";
+import { waitForAuthInteractive } from "./auth-readiness";
+import { dockerDiagnostics } from "./docker-diagnostics";
+import { submitDockerSignup } from "./docker-signup";
+const diagnostics = dockerDiagnostics();
 const directory = await mkdtemp(join(tmpdir(), "workspace-docker-owned-"));
 const project = `workspace-smoke-${randomUUID().replaceAll("-", "")}`;
 const file = join(directory, "config.env");
@@ -22,6 +26,12 @@ try {
     BETTER_AUTH_URL: origin,
   });
   const run = async (...args: string[]) => {
+    // Only fixed operation/service labels, never command arguments or config.
+    const operation = args[0];
+    const service = args.find((arg) =>
+      ["postgres", "api", "web", "migrate"].includes(arg),
+    );
+    diagnostics.record({ kind: "compose-start", operation, service });
     const child = spawn(
       "docker",
       [
@@ -52,6 +62,7 @@ try {
         child.once("error", reject);
         child.once("exit", resolveCode);
       });
+      diagnostics.record({ kind: "compose-exit", operation, service, code });
       if (code !== 0)
         throw new Error(
           "Owned Docker step failed (diagnostics intentionally do not print configuration).",
@@ -86,7 +97,9 @@ try {
     await ready();
     browser = await chromium.launch();
     const page = await browser.newPage();
+    diagnostics.attach(page);
     await page.goto(`${origin}/sign-up`);
+    await waitForAuthInteractive(page);
     await page.getByLabel("Name", { exact: true }).fill("Docker fixture");
     await page
       .getByLabel("Email", { exact: true })
@@ -94,9 +107,8 @@ try {
     await page
       .getByLabel("Password", { exact: true })
       .fill("Synthetic-container-password-123!");
-    await page
-      .getByRole("button", { name: "Create account", exact: true })
-      .click();
+    const signupResponse = await submitDockerSignup(page);
+    assert.equal(signupResponse.status(), 200);
     await page
       .getByRole("heading", { name: "A clearer way to move work forward" })
       .waitFor();
@@ -159,9 +171,34 @@ try {
     console.log(
       "Owned Docker smoke passed: real browser/proxy CRUD, PostgreSQL restart persistence, PostgreSQL/API outages, recovery, secret/source isolation and logout.",
     );
+  } catch (error) {
+    for (const path of ["/health/live", "/health/ready", "/api/v1/session"]) {
+      try {
+        const response = await fetch(`${origin}${path}`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        diagnostics.record({
+          kind: "failure-probe",
+          path,
+          status: response.status,
+        });
+        await response.body?.cancel();
+      } catch {
+        diagnostics.record({
+          kind: "failure-probe",
+          path,
+          error: "unavailable",
+        });
+      }
+    }
+    await diagnostics.save();
+    throw error;
   } finally {
-    await browser?.close();
-    await run("down", "--volumes", "--remove-orphans");
+    try {
+      await browser?.close();
+    } finally {
+      await run("down", "--volumes", "--remove-orphans");
+    }
   }
 } finally {
   await rm(directory, { recursive: true, force: true });
